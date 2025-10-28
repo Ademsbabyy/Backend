@@ -182,7 +182,7 @@
 
 
 from database import db
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 import os
@@ -191,7 +191,7 @@ import bcrypt
 import uvicorn
 import jwt
 load_dotenv()
-
+from middleware import create_token, verify_token
 
 
 
@@ -203,6 +203,15 @@ load_dotenv()
 
 
 app = FastAPI(title="Simple App", version="1.0.0")
+
+
+
+token_time = int(os.getenv("token_time"))
+
+
+
+
+
 class Simple(BaseModel):
     name: str = Field(..., example="Sam Larry")
     email: str = Field(..., example="sam@email.com")
@@ -251,7 +260,7 @@ def signUp(input: Simple):
 # Building a login endpoint
 
 class LoginRequest(BaseModel):
-    email: str = Field(...,example = "sam@gmail.com")
+    email: str = Field(...,example = "sam@email.com")
     password: str = Field(..., example = "sam123")
    
 
@@ -269,6 +278,12 @@ def login(input:LoginRequest):
         result  = db.execute(query,{"email":input.email} ).fetchone()
 
 
+
+
+
+
+
+
         if not result:
             raise HTTPException(status_code=404, detail = "Invalid email or password")
         
@@ -278,8 +293,27 @@ def login(input:LoginRequest):
         if not verified_password:
              raise HTTPException(status_code=404, detail = "Invalid email or password")
         
+
+
+
+        encoded_token = create_token(details = {
+            "email":result.email,
+            "userType":result.userType
+
+
+
+        }, expiry=token_time )
+
+
+
+
+
+
+
+
         return {
-            "message":"Login Successful"
+            "message":"Login Successful",
+            "token": encoded_token
         }
 
 
@@ -298,6 +332,39 @@ def login(input:LoginRequest):
 
 
 
+class courseRequest(BaseModel):
+    title: str = Field(..., example = "Backend Course")
+    level: str = Field(..., example = "Beginner")
+
+
+@app.post("/courses")
+def addcourses(input:courseRequest, user_data = Depends(verify_token)):
+    try:
+        print(user_data)
+
+        if user_data['userType'] != 'admin':
+            raise HTTPException(status_code=401, detail = "You are not authorized to add a course")
+        
+
+
+        
+        query = text("""
+            INSERT INTO courses(title, level)
+            VALUES (:title,:level)
+                     
+    
+
+
+""")
+        db.execute(query, {"title":input.title, "level":input.level})
+        db.commit()
+
+        return {"message":"Courses added successfully",
+                "data":{"title":input.title,"level":input.level}}
+    
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail = str(e))
 
 
 

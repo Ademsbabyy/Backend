@@ -4,3 +4,7 @@ uvicorn
 dataenv
 SQLAlchemy
 pymysql
+dotenv
+bcrypt
+alembic
+pyjwt
